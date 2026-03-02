@@ -1,0 +1,242 @@
+Project Handover: telos-doctrine-brief
+
+1. User Intent
+
+The user wants a cloud-executable pipeline that:
+	1.	Accepts one or more YouTube URLs.
+	2.	Fetches transcripts automatically.
+	3.	Synthesises them into a structured Doctrine Brief using Claude.
+	4.	Runs via GitHub Actions, so it can be triggered from anywhere without local setup.
+
+Primary goal:
+
+Reliable, automated transcript ingestion → Claude synthesis → deterministic output.
+No manual transcript retrieval. Fully automated.
+
+Future horizon (post MVP):
+
+Basic web interface allowing users to save their credentials, select language of transcript, input 1+ Youtube URLs
+
+⸻
+
+2. Current Architecture
+
+Repository
+
+https://github.com/tzioup/telos-doctrine-brief
+
+Key Files
+	•	telos_doctrine.py – main script
+	•	requirements.txt
+	•	.github/workflows/doctrine.yml – GitHub Actions workflow
+	•	prompts/merge_prompt.txt
+	•	prompts/chunk_prompt.txt
+
+Workflow Environment Variables
+
+From GitHub Actions log on initial test:
+
+YOUTUBE_URLS: https://youtu.be/popvxbg9Flc https://www.youtube.com/watch?v=3BXE0e3QZ4U
+PREFERRED_LANGS: en
+ANTHROPIC_MODEL: claude-3-5-sonnet-latest
+ANTHROPIC_API_KEY: (set as secret)
+
+Execution step:
+
+Run python telos_doctrine.py
+
+
+⸻
+
+3. Current Blocking Issue
+
+Error
+
+youtube_transcript_api._errors.TranscriptsDisabled:
+Could not retrieve a transcript for the video ...
+Subtitles are disabled for this video
+
+Then wrapped as:
+
+RuntimeError: Transcripts disabled for video popvxbg9Flc
+Process completed with exit code 1.
+
+Where It Happens
+
+Inside:
+
+transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+
+And specifically:
+
+except TranscriptsDisabled as e:
+    raise RuntimeError(f"Transcripts disabled for video {video_id}") from e
+
+This hard-fails the pipeline.
+
+⸻
+
+4. Important Context
+	•	The user explicitly states Subtitles are enabled on both videos (so the error is a false negative.
+	•	This is running in GitHub Actions (headless environment).
+	•	youtube-transcript-api is being used.
+
+⸻
+
+5. Likely Root Cause
+
+This is a known issue with youtube-transcript-api in CI/headless environments:
+	•	YouTube blocks requests based on:
+	  •	IP reputation
+	  •	Missing cookies
+  	•	No user agent
+  	•	Data center IPs
+  	•	The library interprets blocked responses as TranscriptsDisabled.
+
+This is not actually “subtitles disabled”.
+It is YouTube blocking transcript extraction.
+
+⸻
+
+6. Current Script Behavior
+
+Transcript Flow
+
+try:
+    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+except TranscriptsDisabled:
+    raise RuntimeError(...)
+
+Then:
+	1.	Try manually created transcripts
+	2.	Try auto-generated transcripts
+	3.	Try fallback transcript
+	4.	If nothing → raise RuntimeError
+
+Critical Flaw
+
+The script treats TranscriptsDisabled as a fatal condition instead of:
+	•	Retrying
+	•	Using alternative fetch methods
+	•	Falling back to HTML caption extraction
+	•	Logging and skipping
+	•	Continuing other URLs
+
+This causes the entire Action to fail.
+
+⸻
+
+7. What Needs To Be Fixed
+
+A. Do NOT hard fail on TranscriptsDisabled
+
+Replace:
+
+except TranscriptsDisabled as e:
+    raise RuntimeError(...)
+
+With something like:
+	•	Retry with backoff
+	•	Attempt direct transcript fetch
+	•	Attempt get_transcript() instead of list_transcripts()
+	•	Or gracefully skip with warning
+
+⸻
+
+B. Improve Robustness for CI Environments
+
+Potential solutions:
+
+Option 1 – Use get_transcript() directly
+
+YouTubeTranscriptApi.get_transcript(video_id, languages=preferred_langs)
+
+This sometimes works when list_transcripts() fails.
+
+⸻
+
+Option 2 – Add custom request headers / user agent
+The library uses requests internally. In CI environments, YouTube may block default headers.
+
+A proper fix might involve:
+	•	Monkey-patching HTTP client
+	•	Supplying custom requests.Session with headers
+
+⸻
+
+Option 3 – Add retry logic
+Wrap transcript fetch in retry with exponential backoff:
+	•	3 attempts
+	•	sleep 2s, 5s, 10s
+
+⸻
+
+Option 4 – Soft-fail per video
+Instead of:
+
+raise RuntimeError
+
+Do:
+
+print warning
+return ""
+
+And allow other videos to continue.
+
+⸻
+
+8. Secondary Issues Observed
+
+1. No Resilience Layer
+
+The pipeline currently assumes:
+	•	Transcript retrieval always works.
+	•	Claude call always works.
+	•	Any exception should kill the run.
+
+That is not production-grade behavior.
+
+⸻
+
+10. Where We Are Now
+	•	GitHub repo exists.
+	•	Workflow runs.
+	•	Script compiles.
+	•	Claude integration assumed working.
+	•	Transcript ingestion fails in CI.
+	•	Pipeline exits with code 1.
+	•	User frustrated due to stalled execution.
+
+⸻
+
+11. Clear Immediate Objective
+
+Add logging:
+	•	Print extracted video ID
+	•	Print transcript language found
+	•	Print retry attempts
+	•	Print fallback path taken
+
+This makes CI debugging much easier.
+
+Make the pipeline:
+	•	Not falsely fail when transcripts exist.
+	•	Not exit on first transcript error.
+	•	Reliable in GitHub Actions environment.
+
+⸻
+
+12. Final Clarified Scope
+
+The user does NOT want:
+	•	Manual transcript lookup
+	•	Human intervention
+	•	One-off patch
+	•	Local-only execution
+
+They want:
+	•	Robust cloud-native automation
+	•	Fully autonomous ingestion
+	•	Reliable Doctrine Brief generation
+
+⸻
