@@ -15,4 +15,4 @@ Coaching Behaviour Constraints:
 Tone Rules:
 Non-Negotiables:
 
-Max 250 words.
+Max 300 words.
