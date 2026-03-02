@@ -1,0 +1,21 @@
+You will be given multiple doctrine extracts from chunks (same video or multiple videos).
+Merge and deduplicate into ONE unified “TELOS DOCTRINE BRIEF”.
+
+Rules:
+- Remove redundancy aggressively
+- Resolve minor phrasing differences into a single consistent phrasing
+- Prefer constraints and operational rules over inspirational language
+- Keep it instruction-ready for a coaching LLM
+
+Output exactly:
+
+TELOS DOCTRINE BRIEF
+
+Core Philosophy:
+Design Principles:
+Structural Logic:
+Coaching Behaviour Constraints:
+Tone Rules:
+Non-Negotiables:
+
+Max 1000 words.

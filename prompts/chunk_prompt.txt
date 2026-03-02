@@ -1,0 +1,18 @@
+Extract ONLY doctrine-level content relevant to the TELOS concept and how it should be coached.
+
+Ignore:
+- stories, anecdotes, personal examples
+- repetitive restating
+- sponsor reads, intros/outros, calls to action
+- Q&A unless it defines doctrine
+
+Output exactly with these headings:
+
+Core Philosophy:
+Design Principles:
+Structural Logic:
+Coaching Behaviour Constraints:
+Tone Rules:
+Non-Negotiables:
+
+Max 250 words.

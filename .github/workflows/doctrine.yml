@@ -1,0 +1,48 @@
+name: Generate TELOS Doctrine Brief
+
+on:
+  workflow_dispatch:
+    inputs:
+      youtube_urls:
+        description: "Two YouTube URLs (space or newline separated)"
+        required: true
+      preferred_langs:
+        description: "Comma-separated language codes (e.g. en,fr)"
+        required: false
+        default: "en"
+      anthropic_model:
+        description: "Claude model name"
+        required: false
+        default: "claude-3-5-sonnet-latest"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run pipeline
+        env:
+          YOUTUBE_URLS: ${{ inputs.youtube_urls }}
+          PREFERRED_LANGS: ${{ inputs.preferred_langs }}
+          ANTHROPIC_MODEL: ${{ inputs.anthropic_model }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python telos_doctrine.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TELOS_DOCTRINE_BRIEF
+          path: TELOS_DOCTRINE_BRIEF.md
